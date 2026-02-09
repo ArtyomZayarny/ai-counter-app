@@ -1,0 +1,26 @@
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Project internal docs & notes
+@docs/
+progress.md
+todo.md
+
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# Uploaded photos (runtime data)
+ai-counter/photos/results/
+
+# Flutter (handled by ai-counter-app/.gitignore too)
+ai-counter-app/build/
+ai-counter-app/.dart_tool/
+ai-counter-app/.idea/
+ai-counter-app/.flutter-plugins-dependencies
+ai-counter-app/*.iml
