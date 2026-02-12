@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import 'api_service.dart';
 import 'providers/auth_provider.dart';
+import 'widgets/custom_loader.dart';
 
 enum _ScreenState { initializing, preview, captured, loading, result, error }
 
@@ -136,8 +137,8 @@ class _ScanScreenState extends State<ScanScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Gas Meter')),
       body: switch (_state) {
-        _ScreenState.initializing => const Center(
-            child: CircularProgressIndicator(),
+        _ScreenState.initializing => const FullScreenLoader(
+            message: 'Starting camera...',
           ),
         _ScreenState.preview => _buildPreview(),
         _ScreenState.captured => _buildCaptured(),
@@ -206,16 +207,7 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Widget _buildLoading() {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 24),
-          Text('Recognizing...', style: TextStyle(fontSize: 18)),
-        ],
-      ),
-    );
+    return const FullScreenLoader(message: 'Recognizing...');
   }
 
   Widget _buildResult() {
