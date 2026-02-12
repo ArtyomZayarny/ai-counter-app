@@ -1,79 +1,37 @@
-import asyncio
-import json
-import re
-import time
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.recognizer import recognize_digits
-from app.validation import (
-    ValidationError,
-    normalize_digits,
-    validate_digit_count,
-    validate_image,
+from app.database import engine
+from app.routers import auth, bills, meters, readings, tariffs
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    await engine.dispose()
+
+
+app = FastAPI(title="AI Counter", version="2.0", lifespan=lifespan)
+
+# CORS — allow all origins for mobile app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-app = FastAPI(title="AI Counter", version="1.2")
-
-TIMEOUT_SECONDS = 10
-
-
-@app.post("/recognize")
-async def recognize(image: UploadFile = File(...)):
-    # 1. Validate input
-    try:
-        image_data = await validate_image(image)
-    except ValidationError as e:
-        return JSONResponse(status_code=400, content={"error": e.detail})
-
-    # 2. Start timer
-    start = time.monotonic()
-
-    # 3. Call GPT-4o Vision API with timeout
-    try:
-        raw_text = await asyncio.wait_for(
-            asyncio.to_thread(recognize_digits, image_data, image.content_type),
-            timeout=TIMEOUT_SECONDS - (time.monotonic() - start),
-        )
-    except asyncio.TimeoutError:
-        return JSONResponse(
-            status_code=408, content={"error": "Processing exceeded 10 seconds"}
-        )
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-    # 4. Parse structured JSON response, fallback to plain-text normalization
-    digits = _parse_response(raw_text)
-
-    if len(digits) < 5:
-        return JSONResponse(
-            status_code=422,
-            content={"error": f"Expected at least 5 digits, got {len(digits)}", "result": digits},
-        )
-    digits = digits[:5]
-
-    # 5. Return result
-    return {"result": digits}
+# Include routers
+app.include_router(auth.router)
+app.include_router(readings.router)
+app.include_router(meters.router)
+app.include_router(tariffs.router)
+app.include_router(bills.router)
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
-
-def _parse_response(raw_text: str) -> str:
-    """Extract 5 digits from GPT-4o response (JSON or chain-of-thought)."""
-    # Try to find JSON object in response (handles chain-of-thought wrapping)
-    match = re.search(r'\{[^}]+\}', raw_text)
-    if match:
-        try:
-            data = json.loads(match.group())
-            values = [data.get(f"pos{i}") for i in range(1, 6)]
-            if all(v is not None and isinstance(v, int) and 0 <= v <= 9 for v in values):
-                return "".join(str(v) for v in values)
-        except (json.JSONDecodeError, TypeError):
-            pass
-
-    # Fallback to plain-text normalization
-    return normalize_digits(raw_text)

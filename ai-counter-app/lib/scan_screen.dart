@@ -3,13 +3,17 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'api_service.dart';
+import 'providers/auth_provider.dart';
 
 enum _ScreenState { initializing, preview, captured, loading, result, error }
 
 class ScanScreen extends StatefulWidget {
-  const ScanScreen({super.key});
+  final String meterId;
+
+  const ScanScreen({super.key, required this.meterId});
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
@@ -21,6 +25,7 @@ class _ScanScreenState extends State<ScanScreen> {
   String _result = '';
   String _error = '';
   XFile? _capturedFile;
+  bool _saved = false;
 
   @override
   void initState() {
@@ -44,7 +49,7 @@ class _ScanScreenState extends State<ScanScreen> {
         orElse: () => cameras.first,
       );
 
-      _controller = CameraController(back, ResolutionPreset.high);
+      _controller = CameraController(back, ResolutionPreset.high, enableAudio: false);
       await _controller!.initialize();
       if (mounted) setState(() => _state = _ScreenState.preview);
     } catch (e) {
@@ -85,11 +90,15 @@ class _ScanScreenState extends State<ScanScreen> {
     setState(() => _state = _ScreenState.loading);
 
     try {
-      final result = await recognizeMeter(File(_capturedFile!.path));
+      final response =
+          await recognizeMeter(File(_capturedFile!.path), widget.meterId);
       setState(() {
         _state = _ScreenState.result;
-        _result = result;
+        _result = response['result'] as String;
+        _saved = true;
       });
+    } on UnauthorizedException {
+      if (mounted) context.read<AuthProvider>().handle401();
     } on RecognitionException catch (e) {
       setState(() {
         _state = _ScreenState.error;
@@ -112,6 +121,7 @@ class _ScanScreenState extends State<ScanScreen> {
     setState(() {
       _capturedFile = null;
       _state = _ScreenState.preview;
+      _saved = false;
     });
   }
 
@@ -225,6 +235,18 @@ class _ScanScreenState extends State<ScanScreen> {
                 letterSpacing: 8,
               ),
             ),
+            if (_saved) ...[
+              const SizedBox(height: 12),
+              const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green, size: 20),
+                  SizedBox(width: 8),
+                  Text('Saved!',
+                      style: TextStyle(color: Colors.green, fontSize: 16)),
+                ],
+              ),
+            ],
             const SizedBox(height: 32),
             OutlinedButton.icon(
               onPressed: _reset,

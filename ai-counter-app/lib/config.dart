@@ -1,1 +1,1 @@
-const String apiBaseUrl = 'https://ai-counter-app-production.up.railway.app';
+const String apiBaseUrl = 'http://10.0.2.2:8000';
