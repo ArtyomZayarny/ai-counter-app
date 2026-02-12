@@ -1,5 +1,9 @@
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql+asyncpg://localhost/ytilities")
 # Railway uses postgres:// but asyncpg needs postgresql+asyncpg://

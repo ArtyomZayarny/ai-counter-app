@@ -73,14 +73,19 @@ class AuthService {
       body: jsonEncode({'google_id_token': idToken}),
     );
 
-    final json = jsonDecode(response.body) as Map<String, dynamic>;
-
     if (response.statusCode == 200) {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
       final result = AuthResult.fromJson(json);
       await SecureStorage.setToken(result.accessToken);
       return result;
     }
 
-    throw AuthException(json['detail'] as String? ?? 'Google sign-in failed');
+    // Handle non-JSON error responses (e.g. 500 Internal Server Error)
+    try {
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      throw AuthException(json['detail'] as String? ?? 'Google sign-in failed');
+    } on FormatException {
+      throw AuthException('Server error (${response.statusCode}). Please try again.');
+    }
   }
 }

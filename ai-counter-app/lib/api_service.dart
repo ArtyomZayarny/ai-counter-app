@@ -95,6 +95,30 @@ Future<List<Meter>> getMeters() async {
   return list.map((j) => Meter.fromJson(j as Map<String, dynamic>)).toList();
 }
 
+Future<Meter> createMeter({
+  required String propertyId,
+  required String utilityType,
+  required String name,
+}) async {
+  final headers = await _authHeaders();
+  headers['Content-Type'] = 'application/json';
+  final response = await http
+      .post(
+        Uri.parse('$apiBaseUrl/meters'),
+        headers: headers,
+        body: jsonEncode({
+          'property_id': propertyId,
+          'utility_type': utilityType,
+          'name': name,
+        }),
+      )
+      .timeout(const Duration(seconds: 10));
+
+  _check401(response.statusCode);
+
+  return Meter.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+}
+
 // --- Readings ---
 
 Future<List<Reading>> getReadings(String meterId,

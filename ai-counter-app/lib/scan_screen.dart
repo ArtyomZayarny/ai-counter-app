@@ -13,8 +13,9 @@ enum _ScreenState { initializing, preview, captured, loading, result, error }
 
 class ScanScreen extends StatefulWidget {
   final String meterId;
+  final String meterLabel;
 
-  const ScanScreen({super.key, required this.meterId});
+  const ScanScreen({super.key, required this.meterId, this.meterLabel = 'Gas Meter'});
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
@@ -87,7 +88,7 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Future<void> _confirm() async {
-    if (_capturedFile == null) return;
+    if (_capturedFile == null || _state != _ScreenState.captured) return;
     setState(() => _state = _ScreenState.loading);
 
     try {
@@ -135,7 +136,7 @@ class _ScanScreenState extends State<ScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Gas Meter')),
+      appBar: AppBar(title: Text(widget.meterLabel)),
       body: switch (_state) {
         _ScreenState.initializing => const FullScreenLoader(
             message: 'Starting camera...',

@@ -20,8 +20,14 @@ async def _create_default_property_and_meter(db: AsyncSession, user_id: uuid.UUI
     db.add(prop)
     await db.flush()
 
-    meter = Meter(property_id=prop.id, utility_type="gas", name="Gas Meter")
-    db.add(meter)
+    gas_meter = Meter(property_id=prop.id, utility_type="gas", name="Gas Meter")
+    db.add(gas_meter)
+
+    electricity_meter = Meter(property_id=prop.id, utility_type="electricity", name="Electricity Meter", digit_count=6)
+    db.add(electricity_meter)
+
+    water_meter = Meter(property_id=prop.id, utility_type="water", name="Water Meter")
+    db.add(water_meter)
 
 
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)

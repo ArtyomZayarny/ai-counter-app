@@ -24,13 +24,13 @@ router = APIRouter(tags=["readings"])
 TIMEOUT_SECONDS = 10
 
 
-def _parse_response(raw_text: str) -> str:
-    """Extract 5 digits from GPT-4o response (JSON or chain-of-thought)."""
+def _parse_response(raw_text: str, digit_count: int = 5) -> str:
+    """Extract digits from GPT-4o response (JSON or chain-of-thought)."""
     match = re.search(r'\{[^}]+\}', raw_text)
     if match:
         try:
             data = json.loads(match.group())
-            values = [data.get(f"pos{i}") for i in range(1, 6)]
+            values = [data.get(f"pos{i}") for i in range(1, digit_count + 1)]
             if all(v is not None and isinstance(v, int) and 0 <= v <= 9 for v in values):
                 return "".join(str(v) for v in values)
         except (json.JSONDecodeError, TypeError):
@@ -76,7 +76,7 @@ async def recognize(
     # 3. Call GPT-4o Vision API with timeout
     try:
         raw_text = await asyncio.wait_for(
-            asyncio.to_thread(recognize_digits, image_data, image.content_type),
+            asyncio.to_thread(recognize_digits, image_data, image.content_type, meter.utility_type),
             timeout=TIMEOUT_SECONDS - (time.monotonic() - start),
         )
     except asyncio.TimeoutError:
@@ -85,14 +85,15 @@ async def recognize(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
     # 4. Parse structured JSON response, fallback to plain-text normalization
-    digits = _parse_response(raw_text)
+    expected = meter.digit_count or 5
+    digits = _parse_response(raw_text, expected)
 
-    if len(digits) < 5:
+    if len(digits) < expected:
         return JSONResponse(
             status_code=422,
-            content={"error": f"Expected at least 5 digits, got {len(digits)}", "result": digits},
+            content={"error": f"Expected at least {expected} digits, got {len(digits)}", "result": digits},
         )
-    digits = digits[:5]
+    digits = digits[:expected]
 
     # 5. Auto-save reading
     reading = Reading(

@@ -8,6 +8,7 @@ import 'models/meter.dart';
 import 'providers/auth_provider.dart';
 import 'providers/dashboard_provider.dart';
 import 'scan_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'screens/calculator_screen.dart';
 import 'widgets/bill_card.dart';
 import 'widgets/custom_loader.dart';
@@ -23,10 +24,44 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _serverOnline = true;
   Timer? _timer;
+  int _selectedTab = 0; // 0=Gas, 1=Water, 2=Light
+
   Meter? _gasMeter;
-  DashboardProvider? _dashboardProvider;
+  DashboardProvider? _gasDashboardProvider;
+
+  Meter? _waterMeter;
+  DashboardProvider? _waterDashboardProvider;
+
+  Meter? _electricityMeter;
+  DashboardProvider? _electricityDashboardProvider;
+
+  bool _creatingWaterMeter = false;
+  bool _creatingElectricityMeter = false;
+
+  final Set<String> _deletingIds = {};
+  bool _loggingOut = false;
+  bool _scannerOpening = false;
+
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
+
+  Meter? get _currentMeter {
+    switch (_selectedTab) {
+      case 0: return _gasMeter;
+      case 1: return _waterMeter;
+      case 2: return _electricityMeter;
+      default: return _gasMeter;
+    }
+  }
+
+  DashboardProvider? get _currentDashboard {
+    switch (_selectedTab) {
+      case 0: return _gasDashboardProvider;
+      case 1: return _waterDashboardProvider;
+      case 2: return _electricityDashboardProvider;
+      default: return _gasDashboardProvider;
+    }
+  }
 
   @override
   void initState() {
@@ -48,7 +83,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _timer?.cancel();
     _fadeController.dispose();
-    _dashboardProvider?.dispose();
+    _gasDashboardProvider?.dispose();
+    _waterDashboardProvider?.dispose();
+    _electricityDashboardProvider?.dispose();
     super.dispose();
   }
 
@@ -60,19 +97,81 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _loadMeters() async {
     try {
       final meters = await getMeters();
-      if (mounted) {
-        setState(() {
-          _gasMeter = meters.where((m) => m.utilityType == 'gas').firstOrNull;
-        });
-        if (_gasMeter != null && _dashboardProvider == null) {
-          _dashboardProvider = DashboardProvider(_gasMeter!.id)..loadAll();
-          setState(() {});
-          _fadeController.forward();
-        }
+      if (!mounted) return;
+
+      final gas = meters.where((m) => m.utilityType == 'gas').firstOrNull;
+      final water = meters.where((m) => m.utilityType == 'water').firstOrNull;
+      final electricity =
+          meters.where((m) => m.utilityType == 'electricity').firstOrNull;
+
+      setState(() {
+        _gasMeter = gas;
+        _waterMeter = water;
+        _electricityMeter = electricity;
+      });
+
+      if (gas != null && _gasDashboardProvider == null) {
+        _gasDashboardProvider = DashboardProvider(gas.id)..loadAll();
       }
+      if (water != null && _waterDashboardProvider == null) {
+        _waterDashboardProvider = DashboardProvider(water.id)..loadAll();
+      }
+      if (electricity != null && _electricityDashboardProvider == null) {
+        _electricityDashboardProvider =
+            DashboardProvider(electricity.id)..loadAll();
+      }
+
+      setState(() {});
+      _fadeController.forward();
     } on UnauthorizedException {
       if (mounted) context.read<AuthProvider>().handle401();
     } catch (_) {}
+  }
+
+  Future<void> _ensureWaterMeter() async {
+    if (_waterMeter != null || _creatingWaterMeter) return;
+    if (_gasMeter == null) return;
+
+    setState(() => _creatingWaterMeter = true);
+    try {
+      final meter = await createMeter(
+        propertyId: _gasMeter!.propertyId,
+        utilityType: 'water',
+        name: 'Water Meter',
+      );
+      if (!mounted) return;
+      _waterMeter = meter;
+      _waterDashboardProvider =
+          DashboardProvider(meter.id)..loadAll();
+      setState(() {});
+    } on UnauthorizedException {
+      if (mounted) context.read<AuthProvider>().handle401();
+    } catch (_) {} finally {
+      if (mounted) setState(() => _creatingWaterMeter = false);
+    }
+  }
+
+  Future<void> _ensureElectricityMeter() async {
+    if (_electricityMeter != null || _creatingElectricityMeter) return;
+    if (_gasMeter == null) return;
+
+    setState(() => _creatingElectricityMeter = true);
+    try {
+      final meter = await createMeter(
+        propertyId: _gasMeter!.propertyId,
+        utilityType: 'electricity',
+        name: 'Electricity Meter',
+      );
+      if (!mounted) return;
+      _electricityMeter = meter;
+      _electricityDashboardProvider =
+          DashboardProvider(meter.id)..loadAll();
+      setState(() {});
+    } on UnauthorizedException {
+      if (mounted) context.read<AuthProvider>().handle401();
+    } catch (_) {} finally {
+      if (mounted) setState(() => _creatingElectricityMeter = false);
+    }
   }
 
   Widget _buildAvatar(BuildContext context) {
@@ -97,53 +196,62 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _openScan() async {
-    if (_gasMeter == null || !_serverOnline) return;
-    await Navigator.push(
-      context,
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => ScanScreen(meterId: _gasMeter!.id),
-        transitionsBuilder: (_, anim, __, child) {
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: const Offset(0, 1),
-              end: Offset.zero,
-            ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-            child: child,
-          );
-        },
-        transitionDuration: const Duration(milliseconds: 350),
-      ),
-    );
-    _dashboardProvider?.loadAll();
+    if (_scannerOpening) return;
+    final meter = _currentMeter;
+    if (meter == null || !_serverOnline) return;
+
+    _scannerOpening = true;
+    try {
+      final labels = ['Gas Meter', 'Water Meter', 'Electricity Meter'];
+      final label = labels[_selectedTab];
+      await Navigator.push(
+        context,
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) =>
+              ScanScreen(meterId: meter.id, meterLabel: label),
+          transitionsBuilder: (_, anim, __, child) {
+            return SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 1),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+              child: child,
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 350),
+        ),
+      );
+      _currentDashboard?.loadAll();
+    } finally {
+      _scannerOpening = false;
+    }
   }
 
   Future<void> _openCalculator() async {
-    if (_gasMeter == null || _dashboardProvider == null) return;
+    final meter = _currentMeter;
+    final dashboard = _currentDashboard;
+    if (meter == null || dashboard == null) return;
     await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CalculatorScreen(
-          meter: _gasMeter!,
-          readings: _dashboardProvider!.readings,
+          meter: meter,
+          readings: dashboard.readings,
         ),
       ),
     );
-    _dashboardProvider?.loadAll();
+    dashboard.loadAll();
   }
 
   void _onNavTap(int index) {
-    if (index == 0) {
-      _openScan();
+    // Switch tab and open scanner
+    setState(() => _selectedTab = index);
+    if (index == 1) {
+      _ensureWaterMeter().then((_) => _openScan());
+    } else if (index == 2) {
+      _ensureElectricityMeter().then((_) => _openScan());
     } else {
-      final name = index == 1 ? 'Water' : 'Light';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$name meter — coming soon'),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      _openScan();
     }
   }
 
@@ -173,20 +281,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildDashboard() {
-    if (_dashboardProvider == null) {
-      return const Center(
-        child: CustomLoader(),
-      );
+    final dashboard = _currentDashboard;
+
+    if (dashboard == null) {
+      if (_creatingWaterMeter || _creatingElectricityMeter) {
+        return const Center(child: CustomLoader());
+      }
+      return const Center(child: CustomLoader());
     }
 
     return ChangeNotifierProvider.value(
-      value: _dashboardProvider!,
+      value: dashboard,
       child: Consumer<DashboardProvider>(
         builder: (context, dashboard, _) {
           if (dashboard.loading) {
-            return const Center(
-              child: CustomLoader(),
-            );
+            return const Center(child: CustomLoader());
           }
 
           return FadeTransition(
@@ -217,19 +326,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           index: entry.key,
                           child: BillCard(
                             bill: entry.value,
-                            onDelete: () => _confirmDelete(
-                              context,
-                              'Delete this bill?',
-                              () async {
-                                try {
-                                  await dashboard.removeBill(entry.value.id);
-                                } on UnauthorizedException {
-                                  if (context.mounted) {
-                                    context.read<AuthProvider>().handle401();
-                                  }
-                                }
-                              },
-                            ),
+                            onDelete: _deletingIds.contains(entry.value.id)
+                                ? null
+                                : () => _confirmDelete(
+                                    context,
+                                    'Delete this bill?',
+                                    () async {
+                                      final id = entry.value.id;
+                                      if (_deletingIds.contains(id)) return;
+                                      setState(() => _deletingIds.add(id));
+                                      try {
+                                        await dashboard.removeBill(id);
+                                      } on UnauthorizedException {
+                                        if (context.mounted) {
+                                          context.read<AuthProvider>().handle401();
+                                        }
+                                      } finally {
+                                        if (mounted) {
+                                          setState(() => _deletingIds.remove(id));
+                                        }
+                                      }
+                                    },
+                                  ),
                           ),
                         )),
                     const SizedBox(height: 28),
@@ -244,19 +362,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         index: entry.key + (dashboard.bills.isNotEmpty ? dashboard.bills.length : 0),
                         child: ReadingCard(
                           reading: entry.value,
-                          onDelete: () => _confirmDelete(
-                            context,
-                            'Delete this reading?',
-                            () async {
-                              try {
-                                await dashboard.removeReading(entry.value.id);
-                              } on UnauthorizedException {
-                                if (context.mounted) {
-                                  context.read<AuthProvider>().handle401();
-                                }
-                              }
-                            },
-                          ),
+                          onDelete: _deletingIds.contains(entry.value.id)
+                              ? null
+                              : () => _confirmDelete(
+                                  context,
+                                  'Delete this reading?',
+                                  () async {
+                                    final id = entry.value.id;
+                                    if (_deletingIds.contains(id)) return;
+                                    setState(() => _deletingIds.add(id));
+                                    try {
+                                      await dashboard.removeReading(id);
+                                    } on UnauthorizedException {
+                                      if (context.mounted) {
+                                        context.read<AuthProvider>().handle401();
+                                      }
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _deletingIds.remove(id));
+                                      }
+                                    }
+                                  },
+                                ),
                         ),
                       )),
                 ],
@@ -293,6 +420,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildEmptyState() {
+    final labels = ['Gas', 'Water', 'Light'];
+    final label = labels[_selectedTab];
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
       padding: const EdgeInsets.all(32),
@@ -318,7 +447,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 6),
           Text(
-            'Tap Gas below to scan your meter',
+            'Tap $label below to scan your meter',
             style: TextStyle(
               fontSize: 14,
               color: Colors.white.withValues(alpha: 0.5),
@@ -346,11 +475,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         actions: [
           PopupMenuButton<String>(
-            onSelected: (value) {
+            onSelected: (value) async {
               if (value == 'calculator') {
                 _openCalculator();
               } else if (value == 'logout') {
-                context.read<AuthProvider>().logout();
+                if (_loggingOut) return;
+                _loggingOut = true;
+                try {
+                  await context.read<AuthProvider>().logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      (_) => false,
+                    );
+                  }
+                } finally {
+                  _loggingOut = false;
+                }
               }
             },
             offset: const Offset(0, 48),
@@ -358,7 +499,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(16),
             ),
             itemBuilder: (_) => [
-              if (_gasMeter != null && _dashboardProvider != null)
+              if (_currentMeter != null && _currentDashboard != null)
                 const PopupMenuItem(
                   value: 'calculator',
                   child: Row(
@@ -447,7 +588,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             selectedItemColor: const Color(0xFF4F46E5),
             unselectedItemColor: Colors.grey.shade400,
             selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
-            currentIndex: 0,
+            currentIndex: _selectedTab,
             onTap: _onNavTap,
             items: const [
               BottomNavigationBarItem(

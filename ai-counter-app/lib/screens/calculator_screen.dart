@@ -94,10 +94,10 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
           children: [
             TextField(
               controller: _tariffController,
-              decoration: const InputDecoration(
-                labelText: 'Tariff (EUR per m\u00B3)',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.euro),
+              decoration: InputDecoration(
+                labelText: 'Tariff (EUR per ${widget.meter.utilityType == 'electricity' ? 'kWh' : 'm\u00B3'})',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.euro),
               ),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
@@ -146,8 +146,8 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
                             style: TextStyle(fontSize: 16)),
                         Text(
                           _consumed != null
-                              ? '$_consumed m\u00B3'
-                              : '-- m\u00B3',
+                              ? '$_consumed ${widget.meter.utilityType == 'electricity' ? 'kWh' : 'm\u00B3'}'
+                              : '-- ${widget.meter.utilityType == 'electricity' ? 'kWh' : 'm\u00B3'}',
                           style: const TextStyle(
                               fontSize: 18, fontWeight: FontWeight.bold),
                         ),
