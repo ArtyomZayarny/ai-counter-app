@@ -36,3 +36,15 @@ Future<String> recognizeMeter(File imageFile, {http.Client? client}) async {
   final error = json['error'] as String? ?? 'Unknown error';
   throw RecognitionException(error);
 }
+
+Future<bool> checkHealth({http.Client? client}) async {
+  final c = client ?? http.Client();
+  try {
+    final response = await c
+        .get(Uri.parse('$apiBaseUrl/health'))
+        .timeout(const Duration(seconds: 3));
+    return response.statusCode == 200;
+  } catch (_) {
+    return false;
+  }
+}

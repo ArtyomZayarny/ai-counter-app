@@ -59,5 +59,5 @@ class TestGetPngDimensions:
 
 class TestGetImageDimensions:
     def test_unsupported_content_type_raises_validation_error(self):
-        with pytest.raises(ValidationError, match="Unsupported content type"):
+        with pytest.raises(ValidationError, match="Unsupported image format"):
             get_image_dimensions(b"", "image/gif")

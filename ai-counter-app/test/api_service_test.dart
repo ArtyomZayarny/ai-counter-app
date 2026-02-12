@@ -86,4 +86,33 @@ void main() {
       )),
     );
   });
+
+  group('checkHealth', () {
+    test('returns true when server responds 200', () async {
+      final client = MockClient((request) async {
+        return http.Response('{"status": "ok"}', 200);
+      });
+
+      final result = await checkHealth(client: client);
+      expect(result, true);
+    });
+
+    test('returns false when server responds 500', () async {
+      final client = MockClient((request) async {
+        return http.Response('error', 500);
+      });
+
+      final result = await checkHealth(client: client);
+      expect(result, false);
+    });
+
+    test('returns false on connection error', () async {
+      final client = MockClient((request) async {
+        throw const SocketException('Connection refused');
+      });
+
+      final result = await checkHealth(client: client);
+      expect(result, false);
+    });
+  });
 }

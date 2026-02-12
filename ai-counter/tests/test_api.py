@@ -77,7 +77,7 @@ def test_invalid_format_returns_400():
 
 
 def test_too_small_resolution_returns_400():
-    jpeg = _make_minimal_jpeg(width=640, height=480)
+    jpeg = _make_minimal_jpeg(width=50, height=50)
 
     response = client.post(
         "/recognize",
@@ -85,3 +85,45 @@ def test_too_small_resolution_returns_400():
     )
 
     assert response.status_code == 400
+
+
+def test_health_returns_200():
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+@patch("app.main.recognize_digits")
+def test_chain_of_thought_response(mock_recognize):
+    """GPT-4o returns chain-of-thought text followed by JSON."""
+    mock_recognize.return_value = (
+        "Looking at the drums left to right:\n"
+        "Drum 1: shows 0\nDrum 2: shows 1\nDrum 3: shows 8\n"
+        "Drum 4: shows 1\nDrum 5: shows 4\n\n"
+        '{"pos1": 0, "pos2": 1, "pos3": 8, "pos4": 1, "pos5": 4}'
+    )
+    jpeg = _make_minimal_jpeg()
+
+    response = client.post(
+        "/recognize",
+        files={"image": ("meter.jpg", io.BytesIO(jpeg), "image/jpeg")},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"result": "01814"}
+
+
+@patch("app.main.recognize_digits")
+def test_out_of_range_values_fall_back_to_normalize(mock_recognize):
+    """If pos values are out of 0-9 range, fall back to plain-text normalization."""
+    mock_recognize.return_value = '{"pos1": 0, "pos2": 12, "pos3": 8, "pos4": 1, "pos5": 4}'
+    jpeg = _make_minimal_jpeg()
+
+    response = client.post(
+        "/recognize",
+        files={"image": ("meter.jpg", io.BytesIO(jpeg), "image/jpeg")},
+    )
+
+    # Falls back to normalize_digits which extracts: 0, 1, 2, 8, 1, 4 -> "01281" (first 5)
+    assert response.status_code == 200
+    assert len(response.json()["result"]) == 5

@@ -1,7 +1,10 @@
 import base64
+import logging
 import os
 
 from openai import OpenAI
+
+logger = logging.getLogger(__name__)
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
@@ -26,14 +29,18 @@ SYSTEM_PROMPT = (
     "3. If a drum is between two digits (transitioning), report the LOWER digit.\n"
     "4. Leading zeros matter: 01814 stays 01814.\n"
     "5. Verify each drum independently before answering.\n\n"
-    "Return ONLY valid JSON: {\"pos1\": D, \"pos2\": D, \"pos3\": D, \"pos4\": D, \"pos5\": D} "
+    "RESPONSE FORMAT:\n"
+    "Step 1: Describe what you see on each drum (left to right).\n"
+    "Step 2: Return JSON: {\"pos1\": D, \"pos2\": D, \"pos3\": D, \"pos4\": D, \"pos5\": D} "
     "where D is a single integer 0-9."
 )
 
 USER_PROMPT = (
     "Look at the mechanical rotating drum wheels in the center of this gas meter. "
     "Ignore all printed text, serial numbers, and specs. "
-    "Read only the 5 black/white drums left to right. Return JSON only."
+    "Read only the 5 black/white drums left to right.\n\n"
+    "Step 1: Describe what you see on each drum position.\n"
+    "Step 2: Return the JSON with your reading."
 )
 
 
@@ -49,6 +56,8 @@ def recognize_digits(image_data: bytes, content_type: str) -> str:
     """Send image to GPT-4o Vision API and return raw response text."""
     b64 = base64.b64encode(image_data).decode("utf-8")
     media_type = _detect_media_type(image_data)
+
+    logger.info("Sending image to GPT-4o: %d bytes, type=%s", len(image_data), media_type)
 
     client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -70,8 +79,10 @@ def recognize_digits(image_data: bytes, content_type: str) -> str:
                 ],
             },
         ],
-        max_tokens=80,
+        max_tokens=300,
         temperature=0,
     )
 
-    return response.choices[0].message.content or ""
+    raw = response.choices[0].message.content or ""
+    logger.info("GPT-4o raw response: %s", raw)
+    return raw
