@@ -65,7 +65,7 @@ class _LoginScreenState extends State<LoginScreen> {
     } on AuthException catch (e) {
       setState(() => _error = e.message);
     } catch (e) {
-      setState(() => _error = 'Google sign-in failed: $e');
+      setState(() => _error = 'Could not connect to server');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
