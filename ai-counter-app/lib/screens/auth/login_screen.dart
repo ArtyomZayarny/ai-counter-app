@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import '../../home_screen.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/secure_storage.dart';
 import '../../widgets/app_logo.dart';
+import '../onboarding_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -27,9 +29,13 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _goHome() {
+  Future<void> _goHome() async {
+    final seen = await SecureStorage.hasSeenOnboarding();
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      MaterialPageRoute(
+        builder: (_) => seen ? const HomeScreen() : const OnboardingScreen(),
+      ),
     );
   }
 

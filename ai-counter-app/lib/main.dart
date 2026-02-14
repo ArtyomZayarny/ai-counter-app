@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'home_screen.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/onboarding_screen.dart';
+import 'services/secure_storage.dart';
 import 'widgets/app_logo.dart';
 import 'widgets/custom_loader.dart';
 
@@ -136,9 +138,14 @@ class _SplashScreenState extends State<SplashScreen>
     final auth = context.watch<AuthProvider>();
 
     if (!auth.loading) {
-      Future.delayed(const Duration(milliseconds: 1800), () {
-        if (mounted) {
-          _navigate(auth.isLoggedIn ? const HomeScreen() : const LoginScreen());
+      Future.delayed(const Duration(milliseconds: 1800), () async {
+        if (!mounted) return;
+        if (auth.isLoggedIn) {
+          final seen = await SecureStorage.hasSeenOnboarding();
+          if (!mounted) return;
+          _navigate(seen ? const HomeScreen() : const OnboardingScreen());
+        } else {
+          _navigate(const LoginScreen());
         }
       });
     }

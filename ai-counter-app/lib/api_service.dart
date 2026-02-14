@@ -211,6 +211,7 @@ Future<Bill> createBill({
   required String readingFromId,
   required String readingToId,
   required double tariffPerUnit,
+  String currency = 'EUR',
 }) async {
   final headers = await _authHeaders();
   headers['Content-Type'] = 'application/json';
@@ -223,6 +224,7 @@ Future<Bill> createBill({
           'reading_from_id': readingFromId,
           'reading_to_id': readingToId,
           'tariff_per_unit': tariffPerUnit,
+          'currency': currency,
         }),
       )
       .timeout(const Duration(seconds: 10));

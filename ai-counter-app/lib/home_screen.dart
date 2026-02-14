@@ -244,14 +244,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _onNavTap(int index) {
-    // Switch tab and open scanner
     setState(() => _selectedTab = index);
     if (index == 1) {
-      _ensureWaterMeter().then((_) => _openScan());
+      _ensureWaterMeter();
     } else if (index == 2) {
-      _ensureElectricityMeter().then((_) => _openScan());
-    } else {
-      _openScan();
+      _ensureElectricityMeter();
     }
   }
 
@@ -476,9 +473,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         actions: [
           PopupMenuButton<String>(
             onSelected: (value) async {
-              if (value == 'calculator') {
-                _openCalculator();
-              } else if (value == 'logout') {
+              if (value == 'logout') {
                 if (_loggingOut) return;
                 _loggingOut = true;
                 try {
@@ -499,17 +494,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(16),
             ),
             itemBuilder: (_) => [
-              if (_currentMeter != null && _currentDashboard != null)
-                const PopupMenuItem(
-                  value: 'calculator',
-                  child: Row(
-                    children: [
-                      Icon(Icons.calculate, size: 20),
-                      SizedBox(width: 8),
-                      Text('Calculator'),
-                    ],
-                  ),
-                ),
               const PopupMenuItem(
                 value: 'logout',
                 child: Row(
@@ -528,6 +512,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            FloatingActionButton(
+              heroTag: 'calculator',
+              onPressed: _openCalculator,
+              backgroundColor: const Color(0xFF4F46E5),
+              child: const Icon(Icons.calculate, color: Colors.white),
+            ),
+            FloatingActionButton(
+              heroTag: 'camera',
+              onPressed: _openScan,
+              backgroundColor: const Color(0xFF4F46E5),
+              child: const Icon(Icons.camera_alt, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
