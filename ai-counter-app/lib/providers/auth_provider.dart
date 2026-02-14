@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -47,6 +49,9 @@ class AuthProvider extends ChangeNotifier {
   Future<void> googleSignIn() async {
     final gsi = GoogleSignIn(
       scopes: ['email'],
+      clientId: Platform.isIOS
+          ? '210000571965-c2a960a1j2i1oc8og25musb3u1l5mek0.apps.googleusercontent.com'
+          : null,
       serverClientId:
           '210000571965-hd499r32as02qafa2ae7jsin35clh1tn.apps.googleusercontent.com',
     );
