@@ -1,13 +1,13 @@
 from datetime import date
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BillCreate(BaseModel):
     meter_id: str
     reading_from_id: str
     reading_to_id: str
-    tariff_per_unit: float
+    tariff_per_unit: float = Field(gt=0)
 
 
 class BillResponse(BaseModel):
