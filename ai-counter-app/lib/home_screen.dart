@@ -227,6 +227,36 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
   }
 
+  bool _manualInputOpening = false;
+
+  Future<void> _openManualInput() async {
+    if (_manualInputOpening) return;
+    final meter = _currentMeter;
+    if (meter == null || !_serverOnline) return;
+
+    _manualInputOpening = true;
+    try {
+      final labels = ['Gas', 'Water', 'Electricity'];
+      final label = labels[_selectedTab];
+      final controller = TextEditingController();
+      final saved = await showModalBottomSheet<bool>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (ctx) => _ManualInputSheet(
+          label: label,
+          controller: controller,
+          meterId: meter.id,
+        ),
+      );
+      if (saved == true) {
+        _currentDashboard?.loadAll();
+      }
+    } finally {
+      _manualInputOpening = false;
+    }
+  }
+
   Future<void> _openCalculator() async {
     final meter = _currentMeter;
     final dashboard = _currentDashboard;
@@ -524,6 +554,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: const Icon(Icons.calculate, color: Colors.white),
             ),
             FloatingActionButton(
+              heroTag: 'manual',
+              onPressed: _openManualInput,
+              backgroundColor: const Color(0xFF4F46E5),
+              child: const Icon(Icons.edit, color: Colors.white),
+            ),
+            FloatingActionButton(
               heroTag: 'camera',
               onPressed: _openScan,
               backgroundColor: const Color(0xFF4F46E5),
@@ -676,6 +712,166 @@ class _AnimatedCardWrapperState extends State<_AnimatedCardWrapper>
       child: SlideTransition(
         position: _slide,
         child: widget.child,
+      ),
+    );
+  }
+}
+
+class _ManualInputSheet extends StatefulWidget {
+  final String label;
+  final TextEditingController controller;
+  final String meterId;
+
+  const _ManualInputSheet({
+    required this.label,
+    required this.controller,
+    required this.meterId,
+  });
+
+  @override
+  State<_ManualInputSheet> createState() => _ManualInputSheetState();
+}
+
+class _ManualInputSheetState extends State<_ManualInputSheet> {
+  bool _saving = false;
+  String? _error;
+
+  Future<void> _save() async {
+    final text = widget.controller.text.trim();
+    if (text.isEmpty) {
+      setState(() => _error = 'Enter a value');
+      return;
+    }
+    final value = int.tryParse(text);
+    if (value == null || value < 0) {
+      setState(() => _error = 'Enter a valid number');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    try {
+      await createReading(meterId: widget.meterId, value: value);
+      if (mounted) Navigator.pop(context, true);
+    } on UnauthorizedException {
+      if (mounted) {
+        context.read<AuthProvider>().handle401();
+        Navigator.pop(context, false);
+      }
+    } on RecognitionException catch (e) {
+      setState(() {
+        _saving = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      setState(() {
+        _saving = false;
+        _error = 'Failed to save reading';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              '${widget.label} Reading',
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Enter the current meter value',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: widget.controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 6),
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                hintText: '00000',
+                hintStyle: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 6,
+                  color: Colors.grey.shade300,
+                ),
+                filled: true,
+                fillColor: Colors.grey.shade50,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: const BorderSide(color: Color(0xFF4F46E5), width: 2),
+                ),
+                errorText: _error,
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: _saving ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF4F46E5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: _saving
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Save Reading', style: TextStyle(fontSize: 16)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

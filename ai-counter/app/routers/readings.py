@@ -108,6 +108,41 @@ async def recognize(
     return {"result": digits, "reading_id": str(reading.id)}
 
 
+@router.post("/readings", response_model=ReadingResponse, status_code=status.HTTP_201_CREATED)
+async def create_reading(
+    meter_id: str = Form(...),
+    value: int = Form(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    meter = await _verify_meter_ownership(meter_id, user, db)
+    expected = meter.digit_count or 5
+    max_value = 10 ** expected - 1
+
+    if value < 0 or value > max_value:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Value must be between 0 and {max_value}",
+        )
+
+    reading = Reading(
+        meter_id=meter.id,
+        value=value,
+        recorded_at=datetime.now(timezone.utc),
+    )
+    db.add(reading)
+    await db.commit()
+    await db.refresh(reading)
+
+    return ReadingResponse(
+        id=str(reading.id),
+        meter_id=str(reading.meter_id),
+        value=reading.value,
+        recorded_at=reading.recorded_at,
+        created_at=reading.created_at,
+    )
+
+
 @router.get("/readings", response_model=list[ReadingResponse])
 async def list_readings(
     meter_id: str,

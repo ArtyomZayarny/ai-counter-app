@@ -121,6 +121,29 @@ Future<Meter> createMeter({
 
 // --- Readings ---
 
+Future<Reading> createReading({
+  required String meterId,
+  required int value,
+}) async {
+  final headers = await _authHeaders();
+  final response = await http
+      .post(
+        Uri.parse('$apiBaseUrl/readings'),
+        headers: headers,
+        body: {'meter_id': meterId, 'value': value.toString()},
+      )
+      .timeout(const Duration(seconds: 10));
+
+  _check401(response.statusCode);
+
+  if (response.statusCode == 201) {
+    return Reading.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  final json = jsonDecode(response.body) as Map<String, dynamic>;
+  throw RecognitionException(json['detail'] as String? ?? 'Failed to save reading');
+}
+
 Future<List<Reading>> getReadings(String meterId,
     {int limit = 50, int offset = 0}) async {
   final headers = await _authHeaders();
