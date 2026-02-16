@@ -49,6 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
       await context
           .read<AuthProvider>()
           .login(_emailController.text.trim(), _passwordController.text);
+      _passwordController.clear();
       if (mounted) _goHome();
     } on AuthException catch (e) {
       setState(() => _error = e.message);

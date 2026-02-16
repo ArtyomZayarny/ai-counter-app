@@ -114,7 +114,7 @@ class _ScanScreenState extends State<ScanScreen> {
     } catch (e) {
       setState(() {
         _state = _ScreenState.error;
-        _error = 'Unexpected error: $e';
+        _error = 'Something went wrong. Please try again';
       });
     }
   }

@@ -762,6 +762,10 @@ class _ManualInputSheetState extends State<_ManualInputSheet> {
       setState(() => _error = 'Enter a valid number');
       return;
     }
+    if (value > 9999999) {
+      setState(() => _error = 'Value is too large');
+      return;
+    }
 
     setState(() {
       _saving = true;

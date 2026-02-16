@@ -39,6 +39,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             _passwordController.text,
             _nameController.text.trim(),
           );
+      _passwordController.clear();
       if (mounted) Navigator.pop(context); // Return to login → auto-navigates
     } on AuthException catch (e) {
       setState(() => _error = e.message);
