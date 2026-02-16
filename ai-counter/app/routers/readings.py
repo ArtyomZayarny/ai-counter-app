@@ -5,12 +5,16 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import JSONResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
+
+limiter = Limiter(key_func=get_remote_address)
 from app.models.meter import Meter
 from app.models.property import Property
 from app.models.reading import Reading
@@ -55,7 +59,9 @@ async def _verify_meter_ownership(meter_id: str, user: User, db: AsyncSession) -
 
 
 @router.post("/recognize")
+@limiter.limit("20/minute")
 async def recognize(
+    request: Request,
     image: UploadFile = File(...),
     meter_id: str = Form(...),
     user: User = Depends(get_current_user),
@@ -82,7 +88,7 @@ async def recognize(
     except asyncio.TimeoutError:
         return JSONResponse(status_code=408, content={"error": "Processing exceeded 10 seconds"})
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return JSONResponse(status_code=500, content={"error": "Recognition failed"})
 
     # 4. Parse structured JSON response, fallback to plain-text normalization
     expected = meter.digit_count or 5
@@ -109,7 +115,9 @@ async def recognize(
 
 
 @router.post("/readings", response_model=ReadingResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def create_reading(
+    request: Request,
     meter_id: str = Form(...),
     value: int = Form(...),
     user: User = Depends(get_current_user),
@@ -146,8 +154,8 @@ async def create_reading(
 @router.get("/readings", response_model=list[ReadingResponse])
 async def list_readings(
     meter_id: str,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):

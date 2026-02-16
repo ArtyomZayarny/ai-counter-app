@@ -1,11 +1,15 @@
 import uuid
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
+
+limiter = Limiter(key_func=get_remote_address)
 from app.models.bill import Bill
 from app.models.meter import Meter
 from app.models.property import Property
@@ -35,8 +39,8 @@ async def _verify_meter_ownership(meter_id: str, user: User, db: AsyncSession) -
 @router.get("", response_model=list[BillResponse])
 async def list_bills(
     meter_id: str,
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -68,7 +72,9 @@ async def list_bills(
 
 
 @router.post("", response_model=BillResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
 async def create_bill(
+    request: Request,
     body: BillCreate,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -81,6 +87,9 @@ async def create_bill(
         to_id = uuid.UUID(body.reading_to_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid reading ID")
+
+    if from_id == to_id:
+        raise HTTPException(status_code=400, detail="From and to readings must be different")
 
     result = await db.execute(
         select(Reading).where(Reading.id == from_id, Reading.meter_id == meter.id)
@@ -97,7 +106,7 @@ async def create_bill(
         raise HTTPException(status_code=404, detail="To-reading not found")
 
     consumed = Decimal(str(reading_to.value - reading_from.value))
-    if consumed < 0:
+    if consumed <= 0:
         raise HTTPException(status_code=400, detail="To-reading must be greater than from-reading")
 
     tariff = Decimal(str(body.tariff_per_unit))
