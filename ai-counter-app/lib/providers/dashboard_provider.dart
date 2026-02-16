@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../api_service.dart';
@@ -30,8 +32,10 @@ class DashboardProvider extends ChangeNotifier {
       readings = results[0] as List<Reading>;
       bills = results[1] as List<Bill>;
       tariffs = results[2] as List<Tariff>;
+    } on SocketException {
+      error = 'No internet connection';
     } catch (e) {
-      error = e.toString();
+      error = 'Something went wrong';
     }
 
     loading = false;

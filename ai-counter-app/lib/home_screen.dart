@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -25,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _serverOnline = true;
   Timer? _timer;
   int _selectedTab = 0; // 0=Gas, 1=Water, 2=Light
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   Meter? _gasMeter;
   DashboardProvider? _gasDashboardProvider;
@@ -77,10 +79,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _checkServer();
     _loadMeters();
     _timer = Timer.periodic(const Duration(seconds: 15), (_) => _checkServer());
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+      final hasConnection = results.any((r) => r != ConnectivityResult.none);
+      if (!hasConnection && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No internet connection'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
   }
 
   @override
   void dispose() {
+    _connectivitySub?.cancel();
     _timer?.cancel();
     _fadeController.dispose();
     _gasDashboardProvider?.dispose();
