@@ -1,11 +1,11 @@
 {
-    "name": "ai_counter_app",
-    "short_name": "ai_counter_app",
+    "name": "Ytilities",
+    "short_name": "Ytilities",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#4F46E5",
+    "theme_color": "#4F46E5",
+    "description": "Utility meter recognition app",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
