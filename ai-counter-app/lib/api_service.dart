@@ -71,14 +71,19 @@ Future<Map<String, dynamic>> recognizeMeter(
 
 Future<bool> checkHealth({http.Client? client}) async {
   final c = client ?? http.Client();
-  try {
-    final response = await c
-        .get(Uri.parse('$apiBaseUrl/health'))
-        .timeout(const Duration(seconds: 3));
-    return response.statusCode == 200;
-  } catch (_) {
-    return false;
+  // Retry up to 2 times with exponential backoff (Railway cold starts can take 5-15s)
+  for (var attempt = 0; attempt < 3; attempt++) {
+    try {
+      final response = await c
+          .get(Uri.parse('$apiBaseUrl/health'))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) return true;
+    } catch (_) {}
+    if (attempt < 2) {
+      await Future.delayed(Duration(seconds: 2 * (attempt + 1))); // 2s, 4s
+    }
   }
+  return false;
 }
 
 // --- Meters ---

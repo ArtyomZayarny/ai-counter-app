@@ -6,14 +6,14 @@ from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db
+from app.dependencies import get_current_user, get_db
 
 limiter = Limiter(key_func=get_remote_address)
 from app.models.meter import Meter
 from app.models.property import Property
 from app.models.user import User
-from app.schemas.auth import AuthResponse, GoogleAuthRequest, LoginRequest, RegisterRequest, UserResponse
-from app.services.auth import create_access_token, hash_password, verify_password
+from app.schemas.auth import AppleAuthRequest, AuthResponse, GoogleAuthRequest, LoginRequest, RegisterRequest, UserResponse
+from app.services.auth import create_access_token, hash_password, verify_apple_token, verify_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -119,3 +119,55 @@ async def google_auth(request: Request, body: GoogleAuthRequest, db: AsyncSessio
         access_token=token,
         user=UserResponse(id=str(user.id), email=user.email, name=user.name),
     )
+
+
+@router.post("/apple", response_model=AuthResponse)
+@limiter.limit("10/minute")
+async def apple_auth(request: Request, body: AppleAuthRequest, db: AsyncSession = Depends(get_db)):
+    from app.config import APPLE_BUNDLE_ID
+
+    payload = await verify_apple_token(body.identity_token, APPLE_BUNDLE_ID)
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Apple token")
+
+    apple_id = payload["sub"]
+    email = payload.get("email", "")
+    name = body.name or (email.split("@")[0] if email else "User")
+
+    # Check if user exists by apple_id
+    result = await db.execute(select(User).where(User.apple_id == apple_id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        # Check if email exists (link accounts)
+        if email:
+            result = await db.execute(select(User).where(User.email == email))
+            user = result.scalar_one_or_none()
+        if user:
+            user.apple_id = apple_id
+        else:
+            user = User(email=email or f"{apple_id}@apple.private", apple_id=apple_id, name=name)
+            db.add(user)
+            await db.flush()
+            await _create_default_property_and_meter(db, user.id)
+
+        await db.commit()
+        await db.refresh(user)
+
+    token = create_access_token(str(user.id))
+    return AuthResponse(
+        access_token=token,
+        user=UserResponse(id=str(user.id), email=user.email, name=user.name),
+    )
+
+
+@router.delete("/account", status_code=status.HTTP_200_OK)
+@limiter.limit("3/minute")
+async def delete_account(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await db.delete(user)
+    await db.commit()
+    return {"detail": "Account deleted"}

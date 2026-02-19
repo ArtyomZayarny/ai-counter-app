@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../models/user.dart';
 import '../services/auth_service.dart';
@@ -65,6 +66,41 @@ class AuthProvider extends ChangeNotifier {
     final result = await AuthService.googleSignIn(idToken);
     _user = result.user;
     _photoUrl = googleUser.photoUrl;
+    notifyListeners();
+  }
+
+  Future<void> appleSignIn() async {
+    final credential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+    );
+
+    final identityToken = credential.identityToken;
+    if (identityToken == null) throw AuthException('No Apple identity token');
+
+    // Name is only available on the first sign-in
+    String? name;
+    if (credential.givenName != null || credential.familyName != null) {
+      name = [credential.givenName, credential.familyName]
+          .where((s) => s != null && s.isNotEmpty)
+          .join(' ');
+      if (name.isEmpty) name = null;
+    }
+
+    final result = await AuthService.appleSignIn(identityToken, name: name);
+    _user = result.user;
+    notifyListeners();
+  }
+
+  Future<void> deleteAccount() async {
+    await AuthService.deleteAccount();
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
+    _user = null;
+    _photoUrl = null;
     notifyListeners();
   }
 

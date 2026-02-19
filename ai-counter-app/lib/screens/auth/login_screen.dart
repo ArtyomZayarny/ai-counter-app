@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -68,6 +70,24 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await context.read<AuthProvider>().googleSignIn();
+      if (mounted) _goHome();
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = 'Could not connect to server');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _appleSignIn() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      await context.read<AuthProvider>().appleSignIn();
       if (mounted) _goHome();
     } on AuthException catch (e) {
       setState(() => _error = e.message);
@@ -223,6 +243,24 @@ class _LoginScreenState extends State<LoginScreen> {
                       label: const Text('Continue with Google'),
                     ),
                   ),
+                  if (Platform.isIOS) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: _loading ? null : _appleSignIn,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        icon: const Icon(Icons.apple, size: 24),
+                        label: const Text('Continue with Apple'),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   TextButton(
                     onPressed: _loading

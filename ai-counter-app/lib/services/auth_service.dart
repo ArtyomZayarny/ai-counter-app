@@ -88,6 +88,74 @@ class AuthService {
     }
   }
 
+  static Future<AuthResult> appleSignIn(String identityToken, {String? name}) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$apiBaseUrl/auth/apple'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'identity_token': identityToken,
+          if (name != null) 'name': name,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        final result = AuthResult.fromJson(json);
+        await SecureStorage.setToken(result.accessToken);
+        return result;
+      }
+
+      try {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        throw AuthException(json['detail'] as String? ?? 'Apple sign-in failed');
+      } on FormatException {
+        throw AuthException('Server error (${response.statusCode}). Please try again.');
+      }
+    } on AuthException {
+      rethrow;
+    } on SocketException {
+      throw AuthException('Could not connect to server. Check your internet connection.');
+    } on TimeoutException {
+      throw AuthException('Could not connect to server. Check your internet connection.');
+    }
+  }
+
+  static Future<void> deleteAccount() async {
+    try {
+      final token = await SecureStorage.getToken();
+      final response = await http.delete(
+        Uri.parse('$apiBaseUrl/auth/account'),
+        headers: {
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        await SecureStorage.clearToken();
+        return;
+      }
+
+      if (response.statusCode == 401) {
+        await SecureStorage.clearToken();
+        throw AuthException('Session expired. Please log in again.');
+      }
+
+      try {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        throw AuthException(json['detail'] as String? ?? 'Failed to delete account');
+      } on FormatException {
+        throw AuthException('Server error. Please try again later.');
+      }
+    } on AuthException {
+      rethrow;
+    } on SocketException {
+      throw AuthException('Could not connect to server. Check your internet connection.');
+    } on TimeoutException {
+      throw AuthException('Could not connect to server. Check your internet connection.');
+    }
+  }
+
   static Future<AuthResult> googleSignIn(String idToken) async {
     try {
       final response = await http.post(

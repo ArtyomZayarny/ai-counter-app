@@ -11,6 +11,7 @@ alembic==1.14.1
 
 # Auth
 pyjwt==2.10.1
+cryptography>=42.0.0
 python-dotenv>=1.0.0
 bcrypt==4.2.1
 google-auth==2.37.0
@@ -23,3 +24,6 @@ psycopg2-binary>=2.9.0
 
 # Google auth dependency
 requests>=2.31.0
+
+# Apple auth (JWKS fetch)
+httpx>=0.27.0

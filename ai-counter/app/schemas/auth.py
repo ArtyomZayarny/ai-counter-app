@@ -16,6 +16,11 @@ class GoogleAuthRequest(BaseModel):
     google_id_token: str
 
 
+class AppleAuthRequest(BaseModel):
+    identity_token: str
+    name: str | None = None
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"

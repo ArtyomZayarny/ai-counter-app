@@ -20,4 +20,6 @@ JWT_EXPIRY_MINUTES = int(os.environ.get("JWT_EXPIRY_MINUTES", "10080"))  # 7 day
 
 GOOGLE_CLIENT_ID = os.environ["GOOGLE_CLIENT_ID"]
 
+APPLE_BUNDLE_ID = os.environ.get("APPLE_BUNDLE_ID", "")
+
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]

@@ -24,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _serverOnline = true;
+  bool _initialCheckDone = false;
   Timer? _timer;
   int _selectedTab = 0; // 0=Gas, 1=Water, 2=Light
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
@@ -42,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   final Set<String> _deletingIds = {};
   bool _loggingOut = false;
+  bool _deletingAccount = false;
   bool _scannerOpening = false;
 
   late AnimationController _fadeController;
@@ -106,7 +108,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _checkServer() async {
     final online = await checkHealth();
-    if (mounted) setState(() => _serverOnline = online);
+    if (mounted) {
+      setState(() {
+        _serverOnline = online;
+        _initialCheckDone = true;
+      });
+    }
   }
 
   Future<void> _loadMeters() async {
@@ -322,6 +329,57 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  void _showDeleteAccountDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Delete Account'),
+        content: const Text(
+          'This will permanently delete your account and all your data including meters, readings, and bills. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _performDeleteAccount();
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _performDeleteAccount() async {
+    if (_deletingAccount) return;
+    _deletingAccount = true;
+    try {
+      await context.read<AuthProvider>().deleteAccount();
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (_) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      _deletingAccount = false;
+    }
+  }
+
   Widget _buildDashboard() {
     final dashboard = _currentDashboard;
 
@@ -532,6 +590,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 } finally {
                   _loggingOut = false;
                 }
+              } else if (value == 'delete_account') {
+                _showDeleteAccountDialog();
               }
             },
             offset: const Offset(0, 48),
@@ -546,6 +606,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     Icon(Icons.logout, size: 20),
                     SizedBox(width: 8),
                     Text('Logout'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete_account',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_forever, size: 20, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete Account', style: TextStyle(color: Colors.red)),
                   ],
                 ),
               ),
@@ -601,21 +671,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: SafeArea(
           child: Column(
             children: [
-              if (!_serverOnline)
-                Container(
-                  margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade400.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.cloud_off, color: Colors.white, size: 20),
-                      SizedBox(width: 10),
-                      Text('Server unavailable',
-                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
-                    ],
+              if (_initialCheckDone && !_serverOnline)
+                GestureDetector(
+                  onTap: _checkServer,
+                  child: Container(
+                    margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade400.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.cloud_off, color: Colors.white, size: 20),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text('Server unavailable',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                        ),
+                        Icon(Icons.refresh, color: Colors.white, size: 18),
+                        SizedBox(width: 4),
+                        Text('Tap to retry',
+                            style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      ],
+                    ),
                   ),
                 ),
               Expanded(child: _buildDashboard()),
