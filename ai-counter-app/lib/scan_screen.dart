@@ -272,6 +272,12 @@ class _ScanScreenState extends State<ScanScreen> {
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
             ),
+            const SizedBox(height: 12),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context, 'manual'),
+              icon: const Icon(Icons.edit),
+              label: const Text('Enter Manually'),
+            ),
           ],
         ),
       ),

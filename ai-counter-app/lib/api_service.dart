@@ -71,16 +71,17 @@ Future<Map<String, dynamic>> recognizeMeter(
 
 Future<bool> checkHealth({http.Client? client}) async {
   final c = client ?? http.Client();
-  // Retry up to 2 times with exponential backoff (Railway cold starts can take 5-15s)
-  for (var attempt = 0; attempt < 3; attempt++) {
+  // Retry up to 3 times with backoff (Railway cold starts can take 15-30s)
+  const delays = [3, 6, 10]; // seconds between attempts
+  for (var attempt = 0; attempt < 4; attempt++) {
     try {
       final response = await c
           .get(Uri.parse('$apiBaseUrl/health'))
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) return true;
     } catch (_) {}
-    if (attempt < 2) {
-      await Future.delayed(Duration(seconds: 2 * (attempt + 1))); // 2s, 4s
+    if (attempt < 3) {
+      await Future.delayed(Duration(seconds: delays[attempt]));
     }
   }
   return false;

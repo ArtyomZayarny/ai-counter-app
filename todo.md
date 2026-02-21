@@ -50,6 +50,8 @@
 
 ## Should Do (before user testing)
 
+- [ ] **Bug: comma decimal in tariff breaks calculation** — entering tariff price with comma separator (e.g. "3,2" instead of "3.2") causes calculation to fail; need to normalize comma → dot before parsing
+- [ ] **Scan fallback → manual input** — when recognition API fails, error screen offers "Enter Manually" button that opens the manual input sheet
 - [ ] **Camera permission handling** — graceful dialog when iOS/Android denies camera access
 - [ ] **Photo gallery fallback** — allow selecting existing photos, not just camera capture
 - [ ] **Empty state UX** — better messaging when no readings/bills exist yet

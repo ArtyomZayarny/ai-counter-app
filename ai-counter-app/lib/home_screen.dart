@@ -117,37 +117,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _loadMeters() async {
-    try {
-      final meters = await getMeters();
-      if (!mounted) return;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final meters = await getMeters();
+        if (!mounted) return;
 
-      final gas = meters.where((m) => m.utilityType == 'gas').firstOrNull;
-      final water = meters.where((m) => m.utilityType == 'water').firstOrNull;
-      final electricity =
-          meters.where((m) => m.utilityType == 'electricity').firstOrNull;
+        final gas = meters.where((m) => m.utilityType == 'gas').firstOrNull;
+        final water = meters.where((m) => m.utilityType == 'water').firstOrNull;
+        final electricity =
+            meters.where((m) => m.utilityType == 'electricity').firstOrNull;
 
-      setState(() {
-        _gasMeter = gas;
-        _waterMeter = water;
-        _electricityMeter = electricity;
-      });
+        setState(() {
+          _gasMeter = gas;
+          _waterMeter = water;
+          _electricityMeter = electricity;
+        });
 
-      if (gas != null && _gasDashboardProvider == null) {
-        _gasDashboardProvider = DashboardProvider(gas.id)..loadAll();
+        if (gas != null && _gasDashboardProvider == null) {
+          _gasDashboardProvider = DashboardProvider(gas.id)..loadAll();
+        }
+        if (water != null && _waterDashboardProvider == null) {
+          _waterDashboardProvider = DashboardProvider(water.id)..loadAll();
+        }
+        if (electricity != null && _electricityDashboardProvider == null) {
+          _electricityDashboardProvider =
+              DashboardProvider(electricity.id)..loadAll();
+        }
+
+        setState(() {});
+        _fadeController.forward();
+        return;
+      } on UnauthorizedException {
+        if (mounted) context.read<AuthProvider>().handle401();
+        return;
+      } catch (_) {
+        if (attempt == 0) {
+          await Future.delayed(const Duration(seconds: 3));
+          if (!mounted) return;
+        }
       }
-      if (water != null && _waterDashboardProvider == null) {
-        _waterDashboardProvider = DashboardProvider(water.id)..loadAll();
-      }
-      if (electricity != null && _electricityDashboardProvider == null) {
-        _electricityDashboardProvider =
-            DashboardProvider(electricity.id)..loadAll();
-      }
-
-      setState(() {});
-      _fadeController.forward();
-    } on UnauthorizedException {
-      if (mounted) context.read<AuthProvider>().handle401();
-    } catch (_) {}
+    }
   }
 
   Future<void> _ensureWaterMeter() async {
@@ -226,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     try {
       final labels = ['Gas Meter', 'Water Meter', 'Electricity Meter'];
       final label = labels[_selectedTab];
-      await Navigator.push(
+      final result = await Navigator.push<String>(
         context,
         PageRouteBuilder(
           pageBuilder: (_, __, ___) =>
@@ -244,6 +253,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       );
       _currentDashboard?.loadAll();
+      if (result == 'manual' && mounted) {
+        _openManualInput();
+      }
     } finally {
       _scannerOpening = false;
     }
@@ -671,6 +683,30 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: SafeArea(
           child: Column(
             children: [
+              if (!_initialCheckDone)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Text('Connecting to server...',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                    ],
+                  ),
+                ),
               if (_initialCheckDone && !_serverOnline)
                 GestureDetector(
                   onTap: _checkServer,
