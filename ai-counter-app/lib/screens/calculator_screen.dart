@@ -86,7 +86,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
 
   double? get _totalCost {
     final consumed = _consumed;
-    final tariff = double.tryParse(_tariffController.text);
+    final tariff = double.tryParse(_tariffController.text.replaceAll(',', '.'));
     if (consumed == null || tariff == null) return null;
     return consumed * tariff;
   }
@@ -96,7 +96,7 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
         _toReading == null ||
         _tariffController.text.isEmpty) return;
 
-    final tariff = double.tryParse(_tariffController.text);
+    final tariff = double.tryParse(_tariffController.text.replaceAll(',', '.'));
     if (tariff == null) return;
 
     setState(() => _saving = true);

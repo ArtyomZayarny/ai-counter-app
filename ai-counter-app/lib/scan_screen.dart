@@ -54,11 +54,22 @@ class _ScanScreenState extends State<ScanScreen> {
       _controller = CameraController(back, ResolutionPreset.high, enableAudio: false);
       await _controller!.initialize();
       if (mounted) setState(() => _state = _ScreenState.preview);
-    } catch (e) {
+    } on CameraException catch (e) {
+      if (mounted) {
+        final denied = e.code == 'CameraAccessDenied' ||
+            e.code == 'CameraAccessDeniedWithoutPrompt';
+        setState(() {
+          _state = _ScreenState.error;
+          _error = denied
+              ? 'Camera access denied. Please enable it in Settings.'
+              : 'Camera is not available';
+        });
+      }
+    } catch (_) {
       if (mounted) {
         setState(() {
           _state = _ScreenState.error;
-          _error = 'Camera error: $e';
+          _error = 'Could not start camera';
         });
       }
     }
