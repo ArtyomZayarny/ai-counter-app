@@ -11,6 +11,8 @@ import 'providers/dashboard_provider.dart';
 import 'scan_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/calculator_screen.dart';
+import 'screens/privacy_policy_screen.dart';
+import 'services/secure_storage.dart';
 import 'widgets/bill_card.dart';
 import 'widgets/custom_loader.dart';
 import 'widgets/reading_card.dart';
@@ -226,10 +228,80 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  Future<bool?> _showAiConsentDialog() {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Color(0xFF4F46E5)),
+            SizedBox(width: 10),
+            Expanded(child: Text('AI-Powered Recognition')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'To recognize your meter reading, the photo will be sent to OpenAI for processing.',
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'What we send: only the meter photo and utility type.\n'
+              'What we don\'t send: your name, email, or any personal information.',
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                ctx,
+                MaterialPageRoute(
+                  builder: (_) => const PrivacyPolicyScreen(),
+                ),
+              ),
+              child: const Text(
+                'View Privacy Policy',
+                style: TextStyle(
+                  color: Color(0xFF4F46E5),
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Decline'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await SecureStorage.setAiConsent();
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF4F46E5),
+            ),
+            child: const Text('I Agree'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openScan() async {
     if (_scannerOpening) return;
     final meter = _currentMeter;
     if (meter == null || !_serverOnline) return;
+
+    final hasConsent = await SecureStorage.hasAiConsent();
+    if (!hasConsent && mounted) {
+      final agreed = await _showAiConsentDialog();
+      if (agreed != true) return;
+    }
 
     _scannerOpening = true;
     try {
@@ -604,6 +676,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 }
               } else if (value == 'delete_account') {
                 _showDeleteAccountDialog();
+              } else if (value == 'privacy_policy') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const PrivacyPolicyScreen(),
+                  ),
+                );
               }
             },
             offset: const Offset(0, 48),
@@ -611,6 +690,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               borderRadius: BorderRadius.circular(16),
             ),
             itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'privacy_policy',
+                child: Row(
+                  children: [
+                    Icon(Icons.shield_outlined, size: 20),
+                    SizedBox(width: 8),
+                    Text('Privacy Policy'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'logout',
                 child: Row(

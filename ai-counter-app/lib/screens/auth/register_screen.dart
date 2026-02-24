@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/app_logo.dart';
+import '../privacy_policy_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -211,6 +212,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       'Already have an account? Login',
                       style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.8)),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PrivacyPolicyScreen(),
+                      ),
+                    ),
+                    style:
+                        TextButton.styleFrom(foregroundColor: Colors.white),
+                    child: Text(
+                      'Privacy Policy',
+                      style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6)),
                     ),
                   ),
                 ],

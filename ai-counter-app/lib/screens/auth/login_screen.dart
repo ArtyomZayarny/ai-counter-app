@@ -9,6 +9,7 @@ import '../../services/auth_service.dart';
 import '../../services/secure_storage.dart';
 import '../../widgets/app_logo.dart';
 import '../onboarding_screen.dart';
+import '../privacy_policy_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -274,6 +275,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Text(
                       "Don't have an account? Register",
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PrivacyPolicyScreen(),
+                      ),
+                    ),
+                    style: TextButton.styleFrom(foregroundColor: Colors.white),
+                    child: Text(
+                      'Privacy Policy',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
                     ),
                   ),
                 ],
