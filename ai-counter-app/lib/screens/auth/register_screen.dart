@@ -1,10 +1,15 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/secure_storage.dart';
 import '../../widgets/app_logo.dart';
+import '../onboarding_screen.dart';
 import '../privacy_policy_screen.dart';
+import '../../home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -26,6 +31,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _goHome() async {
+    final seen = await SecureStorage.hasSeenOnboarding();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => seen ? const HomeScreen() : const OnboardingScreen(),
+      ),
+      (route) => false,
+    );
+  }
+
+  Future<void> _googleSignIn() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      await context.read<AuthProvider>().googleSignIn();
+      if (mounted) _goHome();
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = 'Could not connect to server');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _appleSignIn() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      await context.read<AuthProvider>().appleSignIn();
+      if (mounted) _goHome();
+    } on AuthException catch (e) {
+      setState(() => _error = e.message);
+    } catch (e) {
+      setState(() => _error = 'Could not connect to server');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   Future<void> _register() async {
@@ -202,6 +254,51 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           : const Text('Register'),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.3))),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('or', style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13)),
+                      ),
+                      Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.3))),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: _loading ? null : _googleSignIn,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.g_mobiledata, size: 24),
+                      label: const Text('Continue with Google'),
+                    ),
+                  ),
+                  if (Platform.isIOS) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: _loading ? null : _appleSignIn,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        icon: const Icon(Icons.apple, size: 24),
+                        label: const Text('Continue with Apple'),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   TextButton(
                     onPressed:
