@@ -3,12 +3,13 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../api_service.dart';
 import '../widgets/custom_loader.dart';
 import 'auth/register_screen.dart';
 
-enum _ScreenState { initializing, preview, captured, loading, result, error }
+enum _ScreenState { initializing, preview, picker, captured, loading, result, error }
 
 const _utilityTypes = ['gas', 'water', 'electricity'];
 const _utilityLabels = ['Gas', 'Water', 'Electricity'];
@@ -24,10 +25,12 @@ class GuestScanScreen extends StatefulWidget {
 class _GuestScanScreenState extends State<GuestScanScreen> {
   CameraController? _controller;
   _ScreenState _state = _ScreenState.initializing;
+  bool _hasCamera = false;
   String _result = '';
   String _error = '';
   XFile? _capturedFile;
   int _selectedUtility = 0;
+  final _imagePicker = ImagePicker();
 
   @override
   void initState() {
@@ -39,10 +42,8 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        setState(() {
-          _state = _ScreenState.error;
-          _error = 'No camera available';
-        });
+        _hasCamera = false;
+        if (mounted) setState(() => _state = _ScreenState.picker);
         return;
       }
 
@@ -53,25 +54,25 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
 
       _controller = CameraController(back, ResolutionPreset.high, enableAudio: false);
       await _controller!.initialize();
+      _hasCamera = true;
       if (mounted) setState(() => _state = _ScreenState.preview);
     } on CameraException catch (e) {
+      _hasCamera = false;
       if (mounted) {
         final denied = e.code == 'CameraAccessDenied' ||
             e.code == 'CameraAccessDeniedWithoutPrompt';
-        setState(() {
-          _state = _ScreenState.error;
-          _error = denied
-              ? 'Camera access denied. Please enable it in Settings.'
-              : 'Camera is not available';
-        });
+        if (denied) {
+          setState(() {
+            _state = _ScreenState.error;
+            _error = 'Camera access denied. Please enable it in Settings.';
+          });
+        } else {
+          setState(() => _state = _ScreenState.picker);
+        }
       }
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _state = _ScreenState.error;
-          _error = 'Could not start camera';
-        });
-      }
+      _hasCamera = false;
+      if (mounted) setState(() => _state = _ScreenState.picker);
     }
   }
 
@@ -91,11 +92,43 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
     }
   }
 
+  Future<void> _pickFromGallery() async {
+    final picked = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageQuality: 90,
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _capturedFile = picked;
+        _state = _ScreenState.captured;
+      });
+    }
+  }
+
+  Future<void> _pickFromCamera() async {
+    final picked = await _imagePicker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageQuality: 90,
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _capturedFile = picked;
+        _state = _ScreenState.captured;
+      });
+    }
+  }
+
   void _retake() {
-    setState(() {
-      _capturedFile = null;
-      _state = _ScreenState.preview;
-    });
+    _capturedFile = null;
+    if (_hasCamera && _controller != null && _controller!.value.isInitialized) {
+      setState(() => _state = _ScreenState.preview);
+    } else {
+      setState(() => _state = _ScreenState.picker);
+    }
   }
 
   Future<void> _confirm() async {
@@ -130,10 +163,12 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
   }
 
   void _reset() {
-    setState(() {
-      _capturedFile = null;
-      _state = _ScreenState.preview;
-    });
+    _capturedFile = null;
+    if (_hasCamera && _controller != null && _controller!.value.isInitialized) {
+      setState(() => _state = _ScreenState.preview);
+    } else {
+      setState(() => _state = _ScreenState.picker);
+    }
   }
 
   @override
@@ -151,6 +186,7 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
             message: 'Starting camera...',
           ),
         _ScreenState.preview => _buildPreview(),
+        _ScreenState.picker => _buildPicker(),
         _ScreenState.captured => _buildCaptured(),
         _ScreenState.loading => _buildLoading(),
         _ScreenState.result => _buildResult(),
@@ -159,12 +195,12 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
     );
   }
 
-  Widget _buildUtilitySelector() {
+  Widget _buildUtilitySelector({bool dark = true}) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.5),
+        color: dark ? Colors.black.withValues(alpha: 0.5) : const Color(0xFFF1F0FB),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -177,7 +213,7 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
               duration: const Duration(milliseconds: 200),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: selected ? Colors.white : Colors.transparent,
+                color: selected ? (dark ? Colors.white : const Color(0xFF4F46E5)) : Colors.transparent,
                 borderRadius: BorderRadius.circular(9),
               ),
               child: Row(
@@ -186,7 +222,9 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
                   Icon(
                     _utilityIcons[i],
                     size: 16,
-                    color: selected ? const Color(0xFF4F46E5) : Colors.white70,
+                    color: selected
+                        ? (dark ? const Color(0xFF4F46E5) : Colors.white)
+                        : (dark ? Colors.white70 : const Color(0xFF4F46E5).withValues(alpha: 0.5)),
                   ),
                   const SizedBox(width: 4),
                   Text(
@@ -194,7 +232,9 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                      color: selected ? const Color(0xFF4F46E5) : Colors.white70,
+                      color: selected
+                          ? (dark ? const Color(0xFF4F46E5) : Colors.white)
+                          : (dark ? Colors.white70 : const Color(0xFF4F46E5).withValues(alpha: 0.5)),
                     ),
                   ),
                 ],
@@ -221,14 +261,76 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
           bottom: 40,
           left: 0,
           right: 0,
-          child: Center(
-            child: FloatingActionButton.large(
-              onPressed: _capture,
-              child: const Icon(Icons.camera_alt, size: 36),
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FloatingActionButton(
+                heroTag: 'gallery',
+                onPressed: _pickFromGallery,
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
+                child: const Icon(Icons.photo_library, color: Colors.white),
+              ),
+              const SizedBox(width: 24),
+              FloatingActionButton.large(
+                heroTag: 'capture',
+                onPressed: _capture,
+                child: const Icon(Icons.camera_alt, size: 36),
+              ),
+              const SizedBox(width: 24),
+              const SizedBox(width: 56), // Balance
+            ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPicker() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.photo_camera, size: 64, color: Color(0xFF4F46E5)),
+            const SizedBox(height: 16),
+            const Text(
+              'Select a meter photo',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Take a photo or choose from your gallery',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            _buildUtilitySelector(dark: false),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton.icon(
+                onPressed: _pickFromCamera,
+                icon: const Icon(Icons.camera_alt),
+                label: const Text('Take Photo'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF4F46E5),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: _pickFromGallery,
+                icon: const Icon(Icons.photo_library),
+                label: const Text('Choose from Gallery'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
