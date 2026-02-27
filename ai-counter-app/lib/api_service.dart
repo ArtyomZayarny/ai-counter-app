@@ -67,6 +67,41 @@ Future<Map<String, dynamic>> recognizeMeter(
   throw RecognitionException(error);
 }
 
+// --- Guest Recognize ---
+
+Future<Map<String, dynamic>> guestRecognizeMeter(
+  File imageFile, {
+  String utilityType = 'gas',
+  http.Client? client,
+}) async {
+  final uri = Uri.parse('$apiBaseUrl/guest/recognize');
+  final request = http.MultipartRequest('POST', uri)
+    ..fields['utility_type'] = utilityType
+    ..files.add(await http.MultipartFile.fromPath('image', imageFile.path));
+
+  final http.StreamedResponse streamed;
+  final c = client ?? http.Client();
+  try {
+    streamed = await c.send(request).timeout(const Duration(seconds: 15));
+  } on SocketException {
+    throw RecognitionException('No connection to server');
+  }
+
+  final body = await streamed.stream.bytesToString();
+  final json = jsonDecode(body) as Map<String, dynamic>;
+
+  if (streamed.statusCode == 200) {
+    return json; // {result}
+  }
+
+  if (streamed.statusCode == 429) {
+    throw RecognitionException('Too many requests. Please wait a moment and try again.');
+  }
+
+  final error = json['error'] as String? ?? 'Unknown error';
+  throw RecognitionException(error);
+}
+
 // --- Health ---
 
 Future<bool> checkHealth({http.Client? client}) async {

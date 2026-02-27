@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/secure_storage.dart';
 import '../../widgets/app_logo.dart';
+import '../guest_scan_screen.dart';
 import '../onboarding_screen.dart';
 import '../privacy_policy_screen.dart';
 import 'register_screen.dart';
@@ -79,6 +80,84 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _tryWithoutAccount() async {
+    final hasConsent = await SecureStorage.hasAiConsent();
+    if (!hasConsent && mounted) {
+      final agreed = await _showAiConsentDialog();
+      if (agreed != true) return;
+    }
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const GuestScanScreen()),
+      );
+    }
+  }
+
+  Future<bool?> _showAiConsentDialog() {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Color(0xFF4F46E5)),
+            SizedBox(width: 10),
+            Expanded(child: Text('AI-Powered Recognition')),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'To recognize your meter reading, the photo will be sent to OpenAI for processing.',
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'What we send: only the meter photo and utility type.\n'
+              'What we don\'t send: your name, email, or any personal information.',
+            ),
+            const SizedBox(height: 16),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                ctx,
+                MaterialPageRoute(
+                  builder: (_) => const PrivacyPolicyScreen(),
+                ),
+              ),
+              child: const Text(
+                'View Privacy Policy',
+                style: TextStyle(
+                  color: Color(0xFF4F46E5),
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Decline'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await SecureStorage.setAiConsent();
+              if (ctx.mounted) Navigator.pop(ctx, true);
+            },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF4F46E5),
+            ),
+            child: const Text('I Agree'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _appleSignIn() async {
@@ -263,6 +342,33 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                   const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.3))),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('or', style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 13)),
+                      ),
+                      Expanded(child: Divider(color: Colors.white.withValues(alpha: 0.3))),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: _loading ? null : _tryWithoutAccount,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.4)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const Icon(Icons.camera_alt, size: 20),
+                      label: const Text('Try without account'),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   TextButton(
                     onPressed: _loading
                         ? null

@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.database import engine
-from app.routers import auth, bills, meters, readings, tariffs
+from app.routers import auth, bills, guest, meters, readings, tariffs
 
 
 def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
@@ -46,6 +46,7 @@ app.include_router(readings.router)
 app.include_router(meters.router)
 app.include_router(tariffs.router)
 app.include_router(bills.router)
+app.include_router(guest.router)
 
 
 @app.get("/health")
