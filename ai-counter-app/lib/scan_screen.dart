@@ -51,7 +51,7 @@ class _ScanScreenState extends State<ScanScreen> {
         orElse: () => cameras.first,
       );
 
-      _controller = CameraController(back, ResolutionPreset.high, enableAudio: false);
+      _controller = CameraController(back, ResolutionPreset.high, enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
       await _controller!.initialize();
       if (mounted) setState(() => _state = _ScreenState.preview);
     } on CameraException catch (e) {

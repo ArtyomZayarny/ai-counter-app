@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:image_picker/image_picker.dart';
 
 import '../api_service.dart';
@@ -52,7 +53,7 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
         orElse: () => cameras.first,
       );
 
-      _controller = CameraController(back, ResolutionPreset.high, enableAudio: false);
+      _controller = CameraController(back, ResolutionPreset.high, enableAudio: false, imageFormatGroup: ImageFormatGroup.jpeg);
       await _controller!.initialize();
       _hasCamera = true;
       if (mounted) setState(() => _state = _ScreenState.preview);
@@ -118,6 +119,34 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
       setState(() {
         _capturedFile = picked;
         _state = _ScreenState.captured;
+      });
+    }
+  }
+
+  Future<void> _tryDemo() async {
+    setState(() => _state = _ScreenState.loading);
+    try {
+      final data = await rootBundle.load('assets/demo_electricity_meter.jpg');
+      final bytes = data.buffer.asUint8List();
+      final response = await guestRecognizeMeterFromBytes(bytes);
+      setState(() {
+        _state = _ScreenState.result;
+        _result = response['result'] as String;
+      });
+    } on RecognitionException catch (e) {
+      setState(() {
+        _state = _ScreenState.error;
+        _error = e.message;
+      });
+    } on TimeoutException {
+      setState(() {
+        _state = _ScreenState.error;
+        _error = 'Request timed out';
+      });
+    } catch (e) {
+      setState(() {
+        _state = _ScreenState.error;
+        _error = 'Something went wrong. Please try again';
       });
     }
   }
@@ -277,7 +306,12 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
                 child: const Icon(Icons.camera_alt, size: 36),
               ),
               const SizedBox(width: 24),
-              const SizedBox(width: 56), // Balance
+              FloatingActionButton(
+                heroTag: 'demo',
+                onPressed: _tryDemo,
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
+                child: const Icon(Icons.auto_awesome, color: Colors.white),
+              ),
             ],
           ),
         ),
@@ -326,6 +360,23 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
                 onPressed: _pickFromGallery,
                 icon: const Icon(Icons.photo_library),
                 label: const Text('Choose from Gallery'),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 12),
+            Text(
+              "Don't have a meter nearby?",
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton.tonalIcon(
+                onPressed: _tryDemo,
+                icon: const Icon(Icons.auto_awesome),
+                label: const Text('Try with Sample Photo'),
               ),
             ),
           ],

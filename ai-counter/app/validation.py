@@ -1,7 +1,10 @@
+import logging
 import struct
 import zlib
 from fastapi import UploadFile
 
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/heic", "image/heif", "application/octet-stream"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -48,14 +51,15 @@ def _detect_format(data: bytes) -> str:
     return "unknown"
 
 
-def get_image_dimensions(data: bytes, content_type: str) -> tuple[int, int]:
-    """Return (width, height) for JPEG or PNG image data."""
+def get_image_dimensions(data: bytes, content_type: str) -> tuple[int, int] | None:
+    """Return (width, height) for JPEG or PNG image data, or None for unsupported formats."""
     fmt = _detect_format(data)
     if fmt == "jpeg":
         return _get_jpeg_dimensions(data)
     if fmt == "png":
         return _get_png_dimensions(data)
-    raise ValidationError(f"Unsupported image format")
+    logger.warning("Unknown image format (not JPEG/PNG), skipping dimension check")
+    return None
 
 
 async def validate_image(file: UploadFile) -> bytes:
@@ -63,6 +67,10 @@ async def validate_image(file: UploadFile) -> bytes:
 
     Raises ValidationError for invalid input.
     """
+    content_type = (file.content_type or "").lower()
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        raise ValidationError(f"Unsupported content type: {content_type}")
+
     data = await file.read()
 
     if len(data) > MAX_FILE_SIZE:
@@ -71,14 +79,16 @@ async def validate_image(file: UploadFile) -> bytes:
         )
 
     try:
-        width, height = get_image_dimensions(data, "")
+        dimensions = get_image_dimensions(data, "")
     except (struct.error, IndexError, zlib.error) as e:
         raise ValidationError(f"Could not read image dimensions: {e}")
 
-    if width < MIN_WIDTH or height < MIN_HEIGHT:
-        raise ValidationError(
-            f"Image resolution {width}x{height} is below minimum {MIN_WIDTH}x{MIN_HEIGHT}"
-        )
+    if dimensions is not None:
+        width, height = dimensions
+        if width < MIN_WIDTH or height < MIN_HEIGHT:
+            raise ValidationError(
+                f"Image resolution {width}x{height} is below minimum {MIN_WIDTH}x{MIN_HEIGHT}"
+            )
 
     return data
 
