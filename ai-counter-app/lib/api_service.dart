@@ -69,6 +69,47 @@ Future<Map<String, dynamic>> recognizeMeter(
   throw RecognitionException(error);
 }
 
+// --- Recognize from bytes (for demo) ---
+
+Future<Map<String, dynamic>> recognizeMeterFromBytes(
+  Uint8List bytes,
+  String meterId, {
+  http.Client? client,
+}) async {
+  final uri = Uri.parse('$apiBaseUrl/recognize');
+  final request = http.MultipartRequest('POST', uri)
+    ..fields['meter_id'] = meterId
+    ..files.add(http.MultipartFile.fromBytes(
+      'image',
+      bytes,
+      filename: 'demo_meter.jpg',
+      contentType: http_parser.MediaType('image', 'jpeg'),
+    ));
+
+  final headers = await _authHeaders();
+  request.headers.addAll(headers);
+
+  final http.StreamedResponse streamed;
+  final c = client ?? http.Client();
+  try {
+    streamed = await c.send(request).timeout(const Duration(seconds: 15));
+  } on SocketException {
+    throw RecognitionException('No connection to server');
+  }
+
+  _check401(streamed.statusCode);
+
+  final body = await streamed.stream.bytesToString();
+  final json = jsonDecode(body) as Map<String, dynamic>;
+
+  if (streamed.statusCode == 200) {
+    return json; // {result, reading_id}
+  }
+
+  final error = json['error'] as String? ?? 'Unknown error';
+  throw RecognitionException(error);
+}
+
 // --- Guest Recognize ---
 
 Future<Map<String, dynamic>> guestRecognizeMeter(

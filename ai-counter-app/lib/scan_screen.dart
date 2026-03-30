@@ -3,19 +3,32 @@ import 'dart:io';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:provider/provider.dart';
 
 import 'api_service.dart';
 import 'providers/auth_provider.dart';
 import 'widgets/custom_loader.dart';
 
+const _demoAssets = {
+  'gas': 'assets/demo_gas_meter.jpg',
+  'water': 'assets/demo_water_meter.jpg',
+  'electricity': 'assets/demo_electricity_meter.jpg',
+};
+
 enum _ScreenState { initializing, preview, captured, loading, result, error }
 
 class ScanScreen extends StatefulWidget {
   final String meterId;
   final String meterLabel;
+  final String utilityType;
 
-  const ScanScreen({super.key, required this.meterId, this.meterLabel = 'Gas Meter'});
+  const ScanScreen({
+    super.key,
+    required this.meterId,
+    this.meterLabel = 'Gas Meter',
+    this.utilityType = 'gas',
+  });
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
@@ -98,6 +111,40 @@ class _ScanScreenState extends State<ScanScreen> {
     });
   }
 
+  Future<void> _tryDemo() async {
+    setState(() => _state = _ScreenState.loading);
+    try {
+      final assetPath =
+          _demoAssets[widget.utilityType] ?? _demoAssets['electricity']!;
+      final data = await rootBundle.load(assetPath);
+      final bytes = data.buffer.asUint8List();
+      final response =
+          await recognizeMeterFromBytes(bytes, widget.meterId);
+      setState(() {
+        _state = _ScreenState.result;
+        _result = response['result'] as String;
+        _saved = true;
+      });
+    } on UnauthorizedException {
+      if (mounted) context.read<AuthProvider>().handle401();
+    } on RecognitionException catch (e) {
+      setState(() {
+        _state = _ScreenState.error;
+        _error = e.message;
+      });
+    } on TimeoutException {
+      setState(() {
+        _state = _ScreenState.error;
+        _error = 'Request timed out';
+      });
+    } catch (e) {
+      setState(() {
+        _state = _ScreenState.error;
+        _error = 'Something went wrong. Please try again';
+      });
+    }
+  }
+
   Future<void> _confirm() async {
     if (_capturedFile == null || _state != _ScreenState.captured) return;
     setState(() => _state = _ScreenState.loading);
@@ -170,11 +217,22 @@ class _ScanScreenState extends State<ScanScreen> {
           bottom: 40,
           left: 0,
           right: 0,
-          child: Center(
-            child: FloatingActionButton.large(
-              onPressed: _capture,
-              child: const Icon(Icons.camera_alt, size: 36),
-            ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FloatingActionButton.large(
+                heroTag: 'capture',
+                onPressed: _capture,
+                child: const Icon(Icons.camera_alt, size: 36),
+              ),
+              const SizedBox(width: 24),
+              FloatingActionButton(
+                heroTag: 'demo',
+                onPressed: _tryDemo,
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
+                child: const Icon(Icons.auto_awesome, color: Colors.white),
+              ),
+            ],
           ),
         ),
       ],
@@ -288,6 +346,18 @@ class _ScanScreenState extends State<ScanScreen> {
               onPressed: () => Navigator.pop(context, 'manual'),
               icon: const Icon(Icons.edit),
               label: const Text('Enter Manually'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonal(
+              onPressed: _tryDemo,
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.auto_awesome, size: 18),
+                  SizedBox(width: 8),
+                  Text('Try with Sample Photo'),
+                ],
+              ),
             ),
           ],
         ),

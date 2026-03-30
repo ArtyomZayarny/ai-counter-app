@@ -104,6 +104,23 @@ void main() {
     );
   });
 
+  test('recognizeMeterFromBytes 200 returns result', () async {
+    final client = MockClient.streaming((request, _) async {
+      final body = utf8.encode(
+          jsonEncode({'result': '12345', 'reading_id': 'demo-123'}));
+      return http.StreamedResponse(
+        Stream.value(body),
+        200,
+      );
+    });
+
+    final bytes = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xD9]);
+    final result =
+        await recognizeMeterFromBytes(bytes, _testMeterId, client: client);
+    expect(result['result'], '12345');
+    expect(result['reading_id'], 'demo-123');
+  });
+
   group('checkHealth', () {
     test('returns true when server responds 200', () async {
       final client = MockClient((request) async {

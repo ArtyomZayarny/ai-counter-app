@@ -311,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         context,
         PageRouteBuilder(
           pageBuilder: (_, __, ___) =>
-              ScanScreen(meterId: meter.id, meterLabel: label),
+              ScanScreen(meterId: meter.id, meterLabel: label, utilityType: meter.utilityType),
           transitionsBuilder: (_, anim, __, child) {
             return SlideTransition(
               position: Tween<Offset>(
