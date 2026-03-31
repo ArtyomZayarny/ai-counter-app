@@ -32,6 +32,7 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
   XFile? _capturedFile;
   int _selectedUtility = 0;
   final _imagePicker = ImagePicker();
+  bool _showBanner = true;
 
   @override
   void initState() {
@@ -286,31 +287,73 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
           right: 0,
           child: Center(child: _buildUtilitySelector()),
         ),
+        if (_showBanner)
+          Positioned(
+            top: 72,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      "No meter nearby? Tap 'Try Demo' below",
+                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => setState(() => _showBanner = false),
+                    child: const Icon(Icons.close, color: Colors.white70, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ),
         Positioned(
-          bottom: 40,
+          bottom: 24,
           left: 0,
           right: 0,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              FloatingActionButton(
-                heroTag: 'gallery',
-                onPressed: _pickFromGallery,
-                backgroundColor: Colors.white.withValues(alpha: 0.3),
-                child: const Icon(Icons.photo_library, color: Colors.white),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FloatingActionButton(
+                    heroTag: 'gallery',
+                    onPressed: _pickFromGallery,
+                    backgroundColor: Colors.white.withValues(alpha: 0.3),
+                    child: const Icon(Icons.photo_library, color: Colors.white),
+                  ),
+                  const SizedBox(width: 24),
+                  FloatingActionButton.large(
+                    heroTag: 'capture',
+                    onPressed: _capture,
+                    child: const Icon(Icons.camera_alt, size: 36),
+                  ),
+                ],
               ),
-              const SizedBox(width: 24),
-              FloatingActionButton.large(
-                heroTag: 'capture',
-                onPressed: _capture,
-                child: const Icon(Icons.camera_alt, size: 36),
-              ),
-              const SizedBox(width: 24),
-              FloatingActionButton(
-                heroTag: 'demo',
+              const SizedBox(height: 16),
+              FilledButton.icon(
                 onPressed: _tryDemo,
-                backgroundColor: Colors.white.withValues(alpha: 0.3),
-                child: const Icon(Icons.auto_awesome, color: Colors.white),
+                icon: const Icon(Icons.auto_awesome, size: 18),
+                label: const Text('Try Demo',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.amber.shade700,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24)),
+                ),
               ),
             ],
           ),
@@ -504,6 +547,16 @@ class _GuestScanScreenState extends State<GuestScanScreen> {
               style: const TextStyle(fontSize: 16),
             ),
             const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: _tryDemo,
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Try with Sample Photo'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF4F46E5),
+                foregroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: _reset,
               icon: const Icon(Icons.refresh),
