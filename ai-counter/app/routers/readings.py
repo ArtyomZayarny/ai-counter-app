@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_current_user, get_db
@@ -26,6 +26,7 @@ from app.validation import ValidationError, normalize_digits, validate_image
 router = APIRouter(tags=["readings"])
 
 TIMEOUT_SECONDS = 10
+DAILY_SCAN_LIMIT = 3
 
 
 def _parse_response(raw_text: str, digit_count: int = 5) -> str:
@@ -69,6 +70,25 @@ async def recognize(
 ):
     # Verify meter belongs to user
     meter = await _verify_meter_ownership(meter_id, user, db)
+
+    # 0. Check daily scan limit
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    scan_count_result = await db.execute(
+        select(func.count(Reading.id))
+        .join(Meter)
+        .join(Property)
+        .where(Property.user_id == user.id, Reading.created_at >= today_start)
+    )
+    scans_used = scan_count_result.scalar()
+    if scans_used >= DAILY_SCAN_LIMIT:
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": f"Daily scan limit reached ({DAILY_SCAN_LIMIT}/day). Try again tomorrow.",
+                "daily_limit": DAILY_SCAN_LIMIT,
+                "scans_used": scans_used,
+            },
+        )
 
     # 1. Validate input
     try:
